@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prediction Result</title>
+    <style>
+        .image-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 30px;
+            margin-top: 20px;
+        }
+        .image-container img {
+            width: 500px;  /* Set width for larger display */
+            height: auto;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <h1>Prediction Result</h1>
+
+    <div class="image-container">
+        <!-- Original Image -->
+        <div>
+            <h3>Original Image</h3>
+            <img src="{{ image_url }}" alt="Original Image">
+        </div>
+
+        <!-- Heatmap Image -->
+        <div>
+            <h3>Generated Heatmap</h3>
+            <img src="{{ heatmap_url }}" alt="Heatmap">
+        </div>
+    </div>
+
+    <p><strong>Prediction:</strong> {{ prediction }}</p>
+
+    <a href="/">Try Another Image</a>
+</body>
+</html>

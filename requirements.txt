@@ -1,0 +1,10 @@
+Flask
+requests
+torch==2.5.1
+torchvision==0.20.1
+gunicorn
+pytest-docker
+opencv-python==4.10.0.84
+matplotlib==3.10.0
+numpy
+pillow

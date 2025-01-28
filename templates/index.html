@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Image for Prediction</title>
+</head>
+<body>
+    <h1>Upload Image for Prediction</h1>
+
+    <form method="POST" enctype="multipart/form-data">
+        <label for="image_url">Image URL (optional):</label>
+        <input type="text" name="image_url" id="image_url">
+
+        <br><br>
+
+        <label for="image_file">Upload Image (optional):</label>
+        <input type="file" name="image_file" id="image_file" accept="image/*">
+
+        <br><br>
+
+        <button type="submit">Predict</button>
+    </form>
+
+    {% if error %}
+    <p style="color: red;">{{ error }}</p>
+    {% endif %}
+</body>
+</html>

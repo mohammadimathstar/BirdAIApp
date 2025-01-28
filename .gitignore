@@ -1,0 +1,7 @@
+trained_model/
+
+__pycache__/
+
+samples/
+static/
+

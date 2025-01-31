@@ -5,7 +5,17 @@ import torch.utils.model_zoo as model_zoo
 import os
 import copy
 
+model_urls = {
+    'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
+    'resnet34': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',
+    # 'resnet50': 'https://download.pytorch.org/models/resnet50-19c8e357.pth', # Meike
+    'resnet50': 'https://download.pytorch.org/models/resnet50-0676ba61.pth', #v1
+    # 'resnet50': 'https://download.pytorch.org/models/resnet50-11ad3fa6.pth', #v2
+    'resnet101': 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth',
+    'resnet152': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth',
+}
 
+model_dir = './pretrained_models'
 
 def conv3x3(in_planes, out_planes, stride=1):
     """3x3 convolution with padding"""
@@ -153,7 +163,7 @@ class ResNet_features(nn.Module):
 
         # Zero-initialize the last BN in each residual branch,
         # so that the residual branch starts with zeros, and each residual block behaves like an identity.
-        # This improves the trained_model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
+        # This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
         if zero_init_residual:
             for m in self.modules():
                 if isinstance(m, Bottleneck):
@@ -219,18 +229,57 @@ class ResNet_features(nn.Module):
         template = 'resnet{}_features'
         return template.format(self.num_layers() + 1)
 
+def resnet18_features(pretrained=False, **kwargs):
+    """Constructs a ResNet-18 model.
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+    """
+    model = ResNet_features(BasicBlock, [2, 2, 2, 2], **kwargs)
+    if pretrained:
+        my_dict = model_zoo.load_url(model_urls['resnet18'], model_dir=model_dir)
+        my_dict.pop('fc.weight')
+        my_dict.pop('fc.bias')
+        model.load_state_dict(my_dict, strict=False)
+    return model
+
+
+def resnet34_features(pretrained=False, **kwargs):
+    """Constructs a ResNet-34 model.
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+    """
+    model = ResNet_features(BasicBlock, [3, 4, 6, 3], **kwargs)
+    if pretrained:
+        my_dict = model_zoo.load_url(model_urls['resnet34'], model_dir=model_dir)
+        my_dict.pop('fc.weight')
+        my_dict.pop('fc.bias')
+        model.load_state_dict(my_dict, strict=False)
+    return model
+
+def resnet50_features(pretrained=False, **kwargs):
+    """Constructs a ResNet-50 model.
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+    """
+    model = ResNet_features(Bottleneck, [3, 4, 6, 3], **kwargs)
+    if pretrained:
+        my_dict = model_zoo.load_url(model_urls['resnet50'], model_dir=model_dir)
+        my_dict.pop('fc.weight')
+        my_dict.pop('fc.bias')
+        model.load_state_dict(my_dict, strict=False)
+    return model
 
 def resnet50_features_inat(pretrained=False, **kwargs):
-    """Constructs a ResNet-50 trained_model.
+    """Constructs a ResNet-50 model.
     Args:
-        pretrained (bool): If True, returns a trained_model pre-trained on Inaturalist2017
+        pretrained (bool): If True, returns a model pre-trained on Inaturalist2017
     """
     model = ResNet_features(Bottleneck, [3, 4, 6, 3], **kwargs)
     
     if pretrained:
         #use BBN pretrained weights of the conventional learning branch (from BBN.iNaturalist2017.res50.180epoch.best_model.pth)
         #https://openaccess.thecvf.com/content_CVPR_2020/papers/Zhou_BBN_Bilateral-Branch_Network_With_Cumulative_Learning_for_Long-Tailed_Visual_Recognition_CVPR_2020_paper.pdf
-        model_dict = torch.load(os.path.join(os.path.join('lvq', 'state_dicts'), 'BBN.iNaturalist2017.res50.180epoch.best_model.pth'))
+        model_dict = torch.load(os.path.join(os.path.join('features', 'state_dicts'), 'BBN.iNaturalist2017.res50.180epoch.best_model.pth'))
         # rename last residual block from cb_block to layer4.2
         new_model = copy.deepcopy(model_dict)
         for k in model_dict.keys():
@@ -251,3 +300,47 @@ def resnet50_features_inat(pretrained=False, **kwargs):
     return model
 
 
+def resnet101_features(pretrained=False, **kwargs):
+    """Constructs a ResNet-101 model.
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+    """
+    model = ResNet_features(Bottleneck, [3, 4, 23, 3], **kwargs)
+    if pretrained:
+        my_dict = model_zoo.load_url(model_urls['resnet101'], model_dir=model_dir)
+        my_dict.pop('fc.weight')
+        my_dict.pop('fc.bias')
+        model.load_state_dict(my_dict, strict=False)
+    return model
+
+
+def resnet152_features(pretrained=False, **kwargs):
+    """Constructs a ResNet-152 model.
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+    """
+    model = ResNet_features(Bottleneck, [3, 8, 36, 3], **kwargs)
+    if pretrained:
+        my_dict = model_zoo.load_url(model_urls['resnet152'], model_dir=model_dir)
+        my_dict.pop('fc.weight')
+        my_dict.pop('fc.bias')
+        model.load_state_dict(my_dict, strict=False)
+    return model
+
+
+if __name__ == '__main__':
+
+    r18_features = resnet18_features(pretrained=True)
+    print(r18_features)
+
+    r34_features = resnet34_features(pretrained=True)
+    print(r34_features)
+
+    r50_features = resnet50_features(pretrained=True)
+    print(r50_features)
+
+    r101_features = resnet101_features(pretrained=True)
+    print(r101_features)
+
+    r152_features = resnet152_features(pretrained=True)
+    print(r152_features)

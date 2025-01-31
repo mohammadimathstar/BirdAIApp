@@ -7,8 +7,8 @@ import torch
 from torch import Tensor
 from typing import Union
 
-from explain.importance_scores import get_importance
-from lvq.model import Model
+from src.explainability.importance_scores import get_importance
+from src.AChorDSLVQ.model import Model
 
 
 def region_importance_image(model: Model, sample: Tensor) -> Tensor:

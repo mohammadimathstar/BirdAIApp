@@ -1,8 +1,8 @@
-
+import numpy as np
 import torch
 import torch.nn as nn
 from torch import Tensor
-
+from typing import Union
 
 
 def orthogonalize_batch(x_batch: Tensor) -> Tensor:
@@ -73,6 +73,24 @@ def grassmann_repr_full(batch_imgs: Tensor, dim_of_subspace: int) -> Tensor:
     """
     Generate Grassmann representations from a batch of images.
     It returns both singular values and left/right principal directions.
+
+    Parameters:
+    -----------
+    batch_imgs : Tensor
+        A batch of features of size (batch_size, num_of_channels, W, H).
+    dim_of_subspace : int
+        The dimensionality of the extracted subspace.
+
+    Returns:
+    --------
+    Tensor
+        An diagonal matrix of size (batch_size, dim_of_subspace, dim_of_subspace) containing singular values.
+        Two orthonormal matrices of size (batch_size, W*H, dim_of_subspace) representing left/right principal directions.
+
+    Raises:
+    -------
+    AssertionError
+        If the input tensor `batch_imgs` does not have 4 dimensions.
     """
     assert batch_imgs.ndim == 4, f"batch_imgs should be of shape (batch_size, num_of_channels, W, H), but it is {batch_imgs.shape}"
 
@@ -147,6 +165,7 @@ def init_randn(
     xprotos = nn.Parameter(Q)
 
     # Set prototypes' labels
+    # yprotos = torch.from_numpy(np.repeat(classes.numpy(), num_of_protos)).to(torch.int32)
     yprotos = torch.repeat_interleave(classes, num_of_protos).to(torch.int32)
 
     yprotos_mat = torch.zeros((nclass, total_num_of_protos), dtype=torch.int32)
@@ -174,9 +193,25 @@ def compute_distances_on_grassmann_mdf(
         Input tensor representing the subspaces, expected shape (batch_size, W*H, dim_of_subspace).
     xprotos : Tensor
         Prototype tensor representing the prototype subspaces, expected shape (num_of_prototypes, W*H, dim_of_subspace).
+    metric_type : str, optional
+        Type of distance metric to use, either 'chordal' or 'geodesic'. Default is 'chordal'.
     relevance : Tensor, optional
         Tensor representing the relevance of each dimension in the subspace, expected shape (1, dim_of_subspace).
         If None, a uniform relevance is assumed. Default is None.
+
+    Returns:
+    --------
+    dict
+        A dictionary containing:
+        - 'Q' : Left singular vectors (U), shape (batch_size, num_of_prototypes, WxH, dim_of_subspaces).
+        - 'Qw' : Right singular vectors (Vh), shape (batch_size, num_of_prototypes, WxH, dim_of_subspaces).
+        - 'canonicalcorrelation' : Singular values (S), shape (batch_size, num_of_prototypes, dim_of_subspaces).
+        - 'distance' : Computed distances, shape (batch_size, num_of_prototypes).
+
+    Raises:
+    -------
+    Exception
+        If any NaN values are encountered in the distance computation.
     """
     assert xdata.ndim == 3, f"xdata should be of shape (batch_size, W*H, dim_of_subspace), but it is {xdata.shape}"
 
@@ -192,10 +227,12 @@ def compute_distances_on_grassmann_mdf(
         full_matrices=False,
     )
 
+    
     distance = 1 - torch.transpose(
         relevance @ torch.transpose(S, 1, 2).to(relevance.dtype),
         1, 2
     )
+    
 
     if torch.isnan(distance).any():
         raise Exception('Error: NaN values! Using the --log_probabilities flag might fix this issue')
@@ -210,58 +247,48 @@ def compute_distances_on_grassmann_mdf(
     return output
 
 
-# def winner_prototype_indices(
-#         distances: Tensor
-# ):
-#     """
-#     Find the first two closest prototypes (with different labels) to a batch of data.
-#     """
-#     assert distances.ndim == 2, (f"Distances should be a matrix of shape (batch_size, number_of_prototypes), "
-#                                  f"but got {distances.shape}")
-#     copied_distances = distances.clone().detach()
-#
-#     i_1st_closest = distances.argmin(axis=1)
-#     y_1st_closest = model.prototype_layer.yprotos(i_1st_closest)
-#
-#     # Generate a mask for the prototypes corresponding to each image's label
-#     mask = model.prototype_layer.yprotos_mat[y_1st_closest]
-#
-#     # Apply the mask to distances
-#     distances_sparse = distances * mask
-#
-#     # Find the index of the closest prototype for each image
-#     i_2nd_closest = torch.stack(
-#         [
-#             torch.argwhere(w).T[0,
-#             torch.argmin(
-#                 w[torch.argwhere(w).T],
-#             )
-#             ] for w in torch.unbind(distances_sparse)
-#         ], dim=0
-#     ).T
-#
-#     return i_1st_closest, i_2nd_closest
-#
-#
-# def winner_prototype_distances(
-#         ydata: Tensor,
-#         yprotos_matrix: Tensor,
-#         yprotos_comp_matrix: Tensor,
-#         distances: Tensor
-# ) -> tuple:
-#     """
-#     Find the distances between first two closest prototype (with different labels) to a data.
-#     """
-#     nbatch, nprotos = distances.shape
-#
-#     # Find the indices of winner and non-winner prototypes
-#     iplus = winner_prototype_indices(ydata, yprotos_matrix, distances)
-#     iminus = winner_prototype_indices(ydata, yprotos_comp_matrix, distances)
-#
-#     # Extract distances for winner and non-winner prototypes
-#     Dplus = torch.zeros_like(distances)
-#     Dminus = torch.zeros_like(distances)
-#     Dplus[torch.arange(nbatch), iplus] = distances[torch.arange(nbatch), iplus]
-#     Dminus[torch.arange(nbatch), iminus] = distances[torch.arange(nbatch), iminus]
-#
-#     return Dplus, Dminus, iplus, iminus
+def prediction(
+        data: Tensor,
+        xprotos: Tensor,
+        yprotos: Tensor,
+        lamda: Tensor,
+) -> Tensor:
+    """
+    Predict the class labels for input data based on distances to prototype subspaces.
+
+    Parameters:
+    -----------
+    data : Tensor
+        Input tensor representing the subspaces, expected shape (batch_size, W*H, dim_of_subspace).
+    xprotos : Tensor
+        Prototype tensor representing the prototype subspaces, expected shape (num_of_prototypes, W*H, dim_of_subspace).
+    yprotos : Tensor
+        Tensor containing the class labels for each prototype, expected shape (num_of_prototypes,).
+    lamda : Tensor
+        Tensor representing the relevance of each dimension in the subspace, expected shape (1, dim_of_subspace).
+    metric_type : Union['geodesic', 'chordal']
+        Type of distance metric to use, either 'chordal' or 'geodesic'.
+
+    Returns:
+    --------
+    Tensor
+        A tensor containing the predicted class labels for the input data, shape (batch_size,).
+
+    Raises:
+    -------
+    Exception
+        If any NaN values are encountered in the distance computation.
+    """
+    # Compute distances between data and prototypes using the specified metric type and relevance
+    results = compute_distances_on_grassmann_mdf(
+        data, xprotos,
+        relevance=lamda
+    )
+
+    # Select the prototype with the minimum distance for each input in the batch
+    predictions = yprotos[results['distance'].argmin(axis=1)]
+
+    return predictions
+
+
+

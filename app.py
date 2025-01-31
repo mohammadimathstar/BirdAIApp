@@ -46,9 +46,6 @@ def home():
         uploaded_file = request.files.get("image_file")
         filename = None
 
-        # if not image_url:
-        #     return render_template("index.html", error="No URL provided")
-
         try:
             if uploaded_file and uploaded_file.filename != '':
                 # Save uploaded image

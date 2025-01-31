@@ -1,5 +1,4 @@
 import torch
-# from utils import winner_prototypes_indices
 
 def winner_prototypes_indices(
         model,
@@ -67,11 +66,8 @@ def effect_of_hidden_pixel_on_prototype(M, W, rel: torch.Tensor):
     """
     nxd_mat = (M * W) @ torch.tile(torch.diag(rel[0]).unsqueeze(0), dims=(M.shape[0], 1, 1))
 
-    # return 1 - nxd_mat.sum(axis=-1) #???????????????????????
     return nxd_mat.sum(axis=-1), nxd_mat
-    # eps = 0.8
-    # log_nxd_mat = torch.log10((-nxd_mat + 2)/(1-nxd_mat+eps))
-    # return log_nxd_mat.sum(axis=-1)
+
 
 def get_importance(model, feature, Vh, S, output_dic, xprotos, rel):
 
@@ -83,15 +79,9 @@ def get_importance(model, feature, Vh, S, output_dic, xprotos, rel):
     plus = {'index': iplus, "Q": output_dic["Q"][0, iplus], "Qw": output_dic["Qw"][0, iplus]}
     minus = {'index': iminus, "Q": output_dic["Q"][0, iminus], "Qw": output_dic["Qw"][0, iminus]}
 
-
-
-    print(f"iplus: {iplus}, iminus{iminus}")
-    print(iplus, iminus)
-
     winners_type = ['plus', 'minus']
     winners = [plus, minus]
 
-    print("before for loop")
     protos_rot = dict()
     dic = dict()
     for wtype, w in zip(winners_type, winners):

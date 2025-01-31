@@ -1,7 +1,10 @@
-trained_model/
-
 __pycache__/
+*/__pycache__/*
 
+models/
 samples/
 static/
+reports/
 
+.venv
+.idea

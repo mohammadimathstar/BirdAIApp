@@ -1,6 +1,6 @@
 import torch
 from torch.autograd import Function
-from lvq.grassmann import compute_distances_on_grassmann_mdf
+from src.utils.grassmann import compute_distances_on_grassmann_mdf
 
 
 def rotate_data(xs: torch.Tensor, rotation_matrix: torch.Tensor, winner_ids: torch.Tensor, return_rotation_matrix: bool = False):
@@ -70,122 +70,8 @@ def rotate_prototypes(xprotos: torch.Tensor, rotation_matrix: torch.Tensor, winn
     return rotated_proto1, rotated_proto2
 
 
-class GeodesicPrototypeLayer(Function):
 
-    @staticmethod
-    def forward(ctx, xs_subspace, xprotos, relevances):
-
-        # Compute distances between data and prototypes
-        output = compute_distances_on_grassmann_mdf(
-            xs_subspace,
-            xprotos,
-            'geodesic',
-            relevances,
-        )
-
-        ctx.save_for_backward(
-            xs_subspace, xprotos, relevances,
-            output['distance'], output['Q'], output['Qw'], output['canonicalcorrelation'])
-        return output['distance'], output['Qw']
-
-    @staticmethod
-    def backward(ctx, grad_output, grad_qw):
-
-        nbatch = grad_output.shape[0]
-
-        xs_subspace, xprotos, relevances, distances, Q, Qw, cc = ctx.saved_tensors
-
-        winner_ids = torch.stack([
-            torch.nonzero(gd).T[0] if len(torch.nonzero(gd).T[0]) == 2 else torch.tensor([-1, -2]) for gd in
-            torch.unbind(grad_output)
-        ], dim=0)
-
-        if len(torch.argwhere(winner_ids < 0)) > 0:
-            s = torch.argwhere((winner_ids > 0)[:, 0]).T[0]
-            xs_subspace = xs_subspace[s]
-            distances = distances[s]
-            Q = Q[s]
-            Qw = Qw[s]
-            cc = cc[s]
-            winner_ids = winner_ids[s]
-            nbatch = s.shape[0]
-
-        # **********************************************
-        # ********** gradient of prototypes ************
-        # **********************************************
-
-        # Rotate data points (based on winner prototypes)
-        rotated_xs1, rotated_xs2, Qwinners1, Qwinners2 = rotate_data(xs_subspace,
-                                                                     Q,
-                                                                     winner_ids,
-                                                                     return_rotation_matrix=True)
-        dist_grad1 = grad_output[torch.arange(nbatch), winner_ids[torch.arange(nbatch), 0]]
-        dist_grad2 = grad_output[torch.arange(nbatch), winner_ids[torch.arange(nbatch), 1]]
-
-        # Find
-        thetta_winners1 = torch.acos(cc[torch.arange(nbatch), winner_ids[torch.arange(nbatch), 0]])
-        thetta_winners2 = torch.acos(cc[torch.arange(nbatch), winner_ids[torch.arange(nbatch), 1]])
-        assert relevances.shape[1] == thetta_winners1.shape[-1], f"They are not equal {relevances.shape[1]}{thetta_winners1.shape[-1]}"
-        #CHECK
-        diag_rel_x_thetta1 = relevances[0] * thetta_winners1 / torch.sqrt(1 - torch.cos(thetta_winners1)**2)
-        diag_rel_x_thetta2 = relevances[0] * thetta_winners2 / torch.sqrt(1 - torch.cos(thetta_winners2) ** 2)
-        # diag_rel_x_thetta1 = torch.tile(
-        #     relevances[0] * thetta_winners1 / torch.sqrt(1 - torch.cos(thetta_winners1)**2),
-        #     (xprotos.shape[-2], 1)
-        # )
-        # diag_rel_x_thetta2 = torch.tile(
-        #     relevances[0] * thetta_winners2 / torch.sqrt(1 - torch.cos(thetta_winners2)**2),
-        #     (xprotos.shape[-2], 1)
-        # )
-
-        # gradient of prototypes CHECK  (other laptop with gpu: I guess I have already fixed it)
-        # print(rotated_xs1.shape, diag_rel_x_thetta1.unsqueeze(0).shape, )
-        grad_protos1 = - 2 * rotated_xs1 * diag_rel_x_thetta1.unsqueeze(1) * dist_grad1.unsqueeze(-1).unsqueeze(-1)
-        grad_protos2 = - 2 * rotated_xs2 * diag_rel_x_thetta2.unsqueeze(1) * dist_grad2.unsqueeze(-1).unsqueeze(-1)
-
-        # **********************************************
-        # ************ gradient of inputs **************
-        # **********************************************
-
-        # Rotate prototypes (based on winner prototypes)
-        rotated_xprotos1, rotated_xprotos2 = rotate_prototypes(xprotos, Qw, winner_ids)
-
-        # gradient of principal direction of data (U)
-        grad_U1 = - 2 * rotated_xprotos1 * diag_rel_x_thetta1.unsqueeze(1) * dist_grad1.unsqueeze(-1).unsqueeze(-1)
-        grad_U2 = - 2 * rotated_xprotos2 * diag_rel_x_thetta1.unsqueeze(1) * dist_grad2.unsqueeze(-1).unsqueeze(-1)
-
-        # gradient of data: CHECKKKKKKKKKKKKKKKKKK
-        grad_data_subspace = (
-                torch.bmm(
-                    grad_U1.to(Qwinners1.dtype), torch.transpose(Qwinners1, 2, 1)
-                ) + torch.bmm(
-            grad_U2.to(Qwinners1.dtype), torch.transpose(Qwinners2, 2, 1))
-        )
-
-        # **********************************************
-        # ********** gradient of relevances ************
-        # **********************************************
-        #CHECK
-        grad_rel = (
-                thetta_winners1**2 * dist_grad1.unsqueeze(-1) +
-                thetta_winners2**2 * dist_grad2.unsqueeze(-1)
-        )
-
-        grad_xs = grad_protos = grad_relevances = None
-
-        if ctx.needs_input_grad[0]:
-            grad_xs = grad_data_subspace
-        if ctx.needs_input_grad[1]:
-            grad_protos = torch.zeros_like(xprotos)
-            grad_protos[winner_ids[torch.arange(nbatch), 0]] = grad_protos1.to(grad_protos.dtype)
-            grad_protos[winner_ids[torch.arange(nbatch), 1]] = grad_protos2.to(grad_protos.dtype)
-        if ctx.needs_input_grad[2]:
-            grad_relevances = grad_rel
-
-        return grad_xs, grad_protos, grad_relevances
-
-
-class ChordalPrototypeLayer(Function):
+class DistanceLayer(Function):
     @staticmethod
     def forward(ctx, xs_subspace, xprotos, relevances):
         """
@@ -205,7 +91,6 @@ class ChordalPrototypeLayer(Function):
         output = compute_distances_on_grassmann_mdf(
             xs_subspace,
             xprotos,
-            'chordal',
             relevances,
         )
 
@@ -227,14 +112,8 @@ class ChordalPrototypeLayer(Function):
         Returns:
             tuple: Gradient with respect to inputs.
         """
-        # This is a pattern that is very convenient - at the top of backward
-        # unpack saved_tensors and initialize all gradients w.r.t. inputs to
-        # None. Thanks to the fact that additional trailing Nones are
-        # ignored, the return statement is simple even when the function has
-        # optional inputs.
-
+        
         nbatch = grad_output.shape[0]
-        # nbatch_org = nbatch
 
         xs_subspace, xprotos, relevances, distances, Q, Qw, cc = ctx.saved_tensors
         diag_rel = torch.tile(
@@ -246,12 +125,6 @@ class ChordalPrototypeLayer(Function):
         # here we set their indices to negative (we do not use them for training)
         device = grad_output.get_device()
 
-        # Determine winner indices
-        # nprotos = xprotos.shape[0]
-        # winner_ids = torch.stack([
-        #     torch.nonzero(gd).T[0] if len(torch.nonzero(gd).T[0]) == 2 else torch.tensor([torch.randint(nprotos, (1,))[0].item(), torch.randint(nprotos, (1,))[0].item()], device=device) for gd in
-        #     torch.unbind(grad_output)
-        # ], dim=0)
 
         # Handle cases where the gradient of loss is zero (for sigmoid cost function)
         winner_ids = torch.stack([
@@ -300,9 +173,7 @@ class ChordalPrototypeLayer(Function):
                 grad_U2.to(Qwinners1.dtype), torch.transpose(Qwinners2, 2, 1)
             )
         )
-        # grad_data_subspace = (
-        #         torch.bmm(grad_U1.to(Qwinners1.dtype), Qwinners1) + torch.bmm(grad_U2.to(Qwinners1.dtype), Qwinners2)
-        # )
+
         assert grad_data_subspace.shape[0] == nbatch, (f"grad of data should be of shape ({nbatch}, D, d) but it is"
                                                        f" {grad_data_subspace.shape[0]}.")
 
@@ -324,7 +195,7 @@ class ChordalPrototypeLayer(Function):
             grad_protos = torch.zeros_like(xprotos)
             grad_protos[winner_ids[torch.arange(nbatch), 0]] = grad_protos1.to(grad_protos.dtype)
             grad_protos[winner_ids[torch.arange(nbatch), 1]] = grad_protos2.to(grad_protos.dtype)
-            # print(grad_protos.shape)
+
         if ctx.needs_input_grad[2]:
             grad_relevances = grad_rel
 

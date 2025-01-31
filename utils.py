@@ -2,6 +2,7 @@ import os
 import io
 import pickle
 import requests
+import yaml
 
 
 from PIL import Image
@@ -12,8 +13,8 @@ import numpy as np
 import torch
 import torchvision.transforms as transforms
 
-from lvq.model import Model
-from explain.visualize_prediction import compute_region_importance, compute_pixel_importance
+from src.AChorDSLVQ.model import Model
+from src.explainability.visualize_prediction import compute_region_importance, compute_pixel_importance
 
 
 # ------------------------------
@@ -47,25 +48,9 @@ def transform_image(image_bytes):
 # Read Image as Bytes
 # ------------------------------
 def get_bytes_from_image(image_path):
-    print(image_path)
     with open(image_path, "rb") as f:
         return f.read()
 
-# def get_bytes_from_image(image_path):
-#     return open(image_path, "rb").read()
-
-
-# def download_image(url, filename, logger):
-#
-#     response = requests.get(url)
-#
-#     if response.status_code == 200:
-#         with open(filename, "wb") as f:
-#             f.write(response.content)
-#         logger.info(f"Received request: '{url}'")
-#         return filename
-#     else:
-#         raise Exception(f"Unable to download image from {url}")
 
 
 # ------------------------------
@@ -134,7 +119,6 @@ def get_prediction(img):
     model.eval()
     distances, _ = model(img)
     ypred = model.prototype_layer.yprotos[distances.argmin(axis=1)].item()
-
     if index2class:
         assert ypred in index2class.keys(), f"Prediction {ypred} not in class labels."
         output = {'prediction': ypred, 'class': index2class.get(ypred).replace("_", " ")}
@@ -146,9 +130,11 @@ def get_prediction(img):
 # ------------------------------
 # Load Class Labels and Model
 # ------------------------------
-index2class_path = 'index2label_CUB-200-2011.pkl'
+with open("params.yaml", 'r') as f:
+    config = yaml.safe_load(f)
+index2class_path = 'index2labels/index2label_%s.pkl' % config['data_loader']['data_name']
 with open(index2class_path, 'rb') as f:
     index2class = pickle.load(f)
 
-model_dir = "./trained_model/best_test_model"
-model = Model.load(model_dir)
+
+model = Model.load(config['explainability']['model_path'])

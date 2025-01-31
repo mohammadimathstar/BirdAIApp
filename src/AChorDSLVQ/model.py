@@ -1,12 +1,14 @@
-# import argparse
-# import numpy as np
-import os
-import torch
-from torch import nn, Tensor
-import argparse
 
-from lvq.grassmann import grassmann_repr, compute_distances_on_grassmann_mdf, grassmann_repr_full
-from lvq.prototypes import PrototypeLayer
+import numpy as np
+import os
+
+import torch
+import torch.nn as nn
+
+from src.utils.grassmann import grassmann_repr, grassmann_repr_full, compute_distances_on_grassmann_mdf
+from src.utils.glvq import *
+from src.AChorDSLVQ.prototypes import PrototypeLayer
+
 
 
 LOW_BOUND_LAMBDA = 0.001
@@ -14,33 +16,23 @@ LOW_BOUND_LAMBDA = 0.001
 
 class Model(nn.Module):
     def __init__(self,
-                 num_classes: int,
-                 feature_extractor: torch.nn.Module,
-                 args: argparse.Namespace,
+                 config: dict,
+                 feature_extractor: torch.nn.Module,                 
                  add_on_layers: nn.Module = nn.Identity(),
                  device='cpu'
                  ):
         super().__init__()
-        assert num_classes > 0
 
-        self._num_classes = num_classes
-        self._loss_function = args.cost_fun
-        self._metric_type = args.metric_type
-        self._num_prototypes = args.num_of_protos
-        self._feature_dim = args.num_features
-        self._subspace_dim = args.dim_of_subspace
+        self._num_classes = config['data_loader']['num_class']        
 
         # Set the feature extraction network
         self.feature_extractor = feature_extractor
         self._add_on = add_on_layers
 
+
         # Create the prototype layers
         self.prototype_layer = PrototypeLayer(
-            num_prototypes=self._num_prototypes,
-            num_classes=self._num_classes,
-            feature_dim=self._feature_dim,
-            subspace_dim=self._subspace_dim,
-            metric_type=self._metric_type,
+            config,
             device=device,
         )
 
@@ -74,7 +66,7 @@ class Model(nn.Module):
                 inputs: torch.Tensor,
                 **kwargs):
         """
-        Forward pass of the trained_model.
+        Forward pass of the model.
 
         Args:
             inputs (torch.Tensor): A batch of input data.
@@ -87,12 +79,11 @@ class Model(nn.Module):
         features = self._add_on(features)
 
         # Get Grassmann representation of the features
-        subspaces = grassmann_repr(features, self._subspace_dim)
+        subspaces = grassmann_repr(features, self.prototype_layer._subspace_dim)
 
         # Compute distance between subspaces and prototypes
         distance, Qw = self.prototype_layer(
             subspaces)  # SHAPE: (batch_size, num_prototypes, D: dim_of_data, d: dim_of_subspace)
-
         return distance, Qw
 
     def forward_partial(self,
@@ -102,7 +93,7 @@ class Model(nn.Module):
         features = self._add_on(features)
 
         # Get Grassmann representation of the features
-        subspaces, Vh, S = grassmann_repr_full(features, self._subspace_dim)
+        subspaces, Vh, S = grassmann_repr_full(features, self.prototype_layer._subspace_dim)
 
         output = compute_distances_on_grassmann_mdf(
             subspaces,
@@ -116,7 +107,7 @@ class Model(nn.Module):
         if not os.path.isdir(directory_path):
             os.mkdir(directory_path)
 
-        with open(directory_path + "/trained_model.pth", 'wb') as f:
+        with open(directory_path + "/model.pth", 'wb') as f:
             torch.save(self, f)
 
     def save_state(self, directory_path: str):
@@ -130,3 +121,14 @@ class Model(nn.Module):
     def load(directory_path: str):
         return torch.load(directory_path + '/model.pth', map_location=torch.device('cpu'))
 
+
+
+
+def return_model(fname):
+    with np.load(fname + '.npz', allow_pickle=True) as f:
+        xprotos, yprotos = f['xprotos'], f['yprotos']
+        lamda = f['lamda']
+        print(f"train accuracy: {f['accuracy_of_train_set'][-1]}, "
+              f"\t validation accuracy: {f['accuracy_of_validation_set'][-1]} ({np.max(f['accuracy_of_validation_set'])})")
+
+    return xprotos, yprotos, lamda

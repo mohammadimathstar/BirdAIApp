@@ -67,7 +67,7 @@ The input image should be a (.jpg) file. The app will process this image to pred
 
 ## Example
 
-This is the visualization generated for an image which has been predicted to be ???:
+This is the visualization generated for an image:
 
 ![plot](./samples/example.png)
 

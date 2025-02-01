@@ -1,2 +1,10 @@
 2025-01-31 19:54:21,177 - INFO - Prediction: 'Bombay'
 2025-01-31 19:54:21,271 - INFO - Heatmap generated at static/heatmaps/heatmap_original_image.png
+2025-02-01 16:15:50,086 - INFO - Prediction: 'Acura RL Sedan 2012'
+2025-02-01 16:15:50,206 - INFO - Heatmap generated at static/heatmaps/heatmap_original_image.png
+2025-02-01 16:17:03,044 - INFO - Prediction: 'Acura TL Sedan 2012'
+2025-02-01 16:17:03,142 - INFO - Heatmap generated at static/heatmaps/heatmap_original_image.png
+2025-02-01 16:19:45,131 - INFO - Prediction: 'Aston Martin Virage Convertible 2012'
+2025-02-01 16:19:45,221 - INFO - Heatmap generated at static/heatmaps/heatmap_original_image.png
+2025-02-01 16:20:39,118 - INFO - Prediction: 'Aston Martin Virage Convertible 2012'
+2025-02-01 16:20:39,208 - INFO - Heatmap generated at static/heatmaps/heatmap_original_image.png

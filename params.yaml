@@ -6,11 +6,11 @@ base:
 
 
 data_loader:
-  data_name: "PETS"
-  num_class: 37
-  train_dir: "data/PETS/train"
-  test_dir: "data/PETS/test"
-  batch_size_train: 4
+  data_name: "CARS"
+  num_class: 196
+  train_dir: "data/CARS/train"
+  test_dir: "data/CARS/test"
+  batch_size_train: 8
   batch_size_test: 32
   image_size: 224 # the size of the input images to CNN 
 
@@ -30,7 +30,7 @@ train:
     num_prototypes: 1  # number of prototypes per class    
     W1: 1
     H1: 1
-    prototype_depth: 512 # num_features # 'Depth of the prototype and therefore also depth of convolutional output'
+    prototype_depth: 512 # 'Depth of the prototype and therefore also depth of convolutional output'
     subspace_dim: 10 # the dimension of the subspace
 
   lr_prototypes: 0.05
@@ -41,7 +41,7 @@ train:
   weight_decay: 0.0 
   freeze_epochs: 10
   num_epochs: 500
-  checkpoint_dir: 'models/checkpoints'
+  checkpoint_dir: 'models/'
 
 evaluate:
   reports_dir: 'reports'
@@ -49,6 +49,6 @@ evaluate:
   # confusion_matrix_image: 'confusion_matrix.png'
 
 explainability:
-  sample_dir: 'data/PETS/samples'
+  sample_dir: 'data/CARS/samples'
   reports_dir: 'reports/explainations/'
-  model_path: 'models'
+  model_path: 'models/'

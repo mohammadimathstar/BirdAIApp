@@ -1,4 +1,4 @@
-# Predictor
+# Car Classifier
 
 This is a web application built using **Flask** to classify images (using **AChorDS-LVQ**). The app predicts what type of car is in an image. In addition to the prediction, it also visualizes a heatmap, capturing the effect of each pixels on the model decision (in a form of heatmap).
 
